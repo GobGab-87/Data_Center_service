@@ -1,0 +1,89 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String            @id @default(uuid())
+  username     String            @unique
+  passwordHash String
+  fullName     String
+  department   String?
+  role         String            @default("OPERATOR") // "ADMIN", "OPERATOR"
+  status       String            @default("PENDING")  // "PENDING", "APPROVED", "REJECTED"
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  rounds       InspectionRound[]
+}
+
+model Room {
+  id          String      @id @default(uuid())
+  name        String
+  code        String      @unique
+  floor       String?
+  description String?
+  equipments  Equipment[]
+  createdAt   DateTime    @default(now())
+}
+
+model EquipmentType {
+  id           String      @id @default(uuid())
+  name         String      @unique
+  category     String      @default("ELECTRICAL") // "ELECTRICAL", "COOLING", "ENVIRONMENT", "OTHER"
+  fieldsConfig String      // JSON string of fields: [{ key: 'v_a', label: 'Voltage Phase A (V)', type: 'number', unit: 'V' }]
+  equipments   Equipment[]
+  createdAt    DateTime    @default(now())
+}
+
+model Equipment {
+  id           String          @id @default(uuid())
+  name         String
+  code         String          @unique
+  qrCode       String          @unique
+  roomId       String
+  room         Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  typeId       String
+  type         EquipmentType   @relation(fields: [typeId], references: [id])
+  normalRanges String?         // JSON string: { minTemp: 18, maxTemp: 27, maxKw: 150 }
+  status       String          @default("ACTIVE")
+  logs         InspectionLog[]
+  createdAt    DateTime        @default(now())
+}
+
+model InspectionRound {
+  id          String          @id @default(uuid())
+  shiftName   String          // "กะเช้า (Morning)", "กะบ่าย (Afternoon)", "กะดึก (Night)"
+  inspectorId String
+  inspector   User            @relation(fields: [inspectorId], references: [id])
+  status      String          @default("IN_PROGRESS") // "IN_PROGRESS", "COMPLETED"
+  startedAt   DateTime        @default(now())
+  completedAt DateTime?
+  notes       String?
+  logs        InspectionLog[]
+}
+
+model InspectionLog {
+  id          String        @id @default(uuid())
+  roundId     String
+  round       InspectionRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  equipmentId String
+  equipment   Equipment     @relation(fields: [equipmentId], references: [id])
+  readings    String        // JSON string of actual measurements: { v_a: 230, kw: 45.2, temp: 22.5, humidity: 55 }
+  isDefect    Boolean       @default(false)
+  defectNote  String?
+  recordedAt  DateTime      @default(now())
+  photos      DefectPhoto[]
+}
+
+model DefectPhoto {
+  id         String        @id @default(uuid())
+  logId      String
+  log        InspectionLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+  photoUrl   String
+  caption    String?
+  uploadedAt DateTime      @default(now())
+}

@@ -1,0 +1,11 @@
+{
+  "name": "dc-operation-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Data Center Operation & Energy Inspection Service",
+  "scripts": {
+    "start:backend": "cd backend && npm run dev",
+    "start:frontend": "cd frontend && npm run dev",
+    "build": "cd backend && npm run build && cd ../frontend && npm run build"
+  }
+}

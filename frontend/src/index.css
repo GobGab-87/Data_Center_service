@@ -1,0 +1,243 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Sarabun', 'Prompt', sans-serif;
+    --scrollbar-thumb: #c2c2c2;
+    --scrollbar-track: #f7f7f7;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: thin;
+  }
+
+  body {
+    background-color: #ffffff;
+    color: #1a1a1a;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* HP Typography Principles: Weight 500 for Display Headings, Tight Line-Height */
+  h1, h2, h3, h4, h5, h6, .text-balance {
+    font-weight: 500;
+    text-wrap: balance;
+  }
+
+  p, .text-pretty {
+    text-wrap: pretty;
+  }
+
+  /* Disciplined Tabular Numerals for Metrics */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Fallback for legacy WebKit/Blink browsers lacking standard scrollbar-color */
+@supports not (scrollbar-color: auto) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f7f7f7;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #c2c2c2;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #999999;
+  }
+}
+
+/* HP Signature Button Components (Pure CSS - Zero @apply issues) */
+@layer components {
+  .hp-btn-primary {
+    background-color: #024ad8;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    border-radius: 4px;
+    height: 44px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color 0.15s ease-in-out;
+    cursor: pointer;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+  .hp-btn-primary:hover {
+    background-color: #0e3191;
+  }
+  .hp-btn-primary:active {
+    background-color: #0e3191;
+  }
+  .hp-btn-primary:disabled {
+    background-color: #c2c2c2;
+    cursor: not-allowed;
+  }
+
+  .hp-btn-outline {
+    background-color: #ffffff;
+    color: #024ad8;
+    border: 1px solid #024ad8;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    border-radius: 4px;
+    height: 44px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+    cursor: pointer;
+  }
+  .hp-btn-outline:hover {
+    background-color: #f7f7f7;
+  }
+  .hp-btn-outline:active {
+    background-color: rgba(201, 224, 252, 0.3);
+  }
+
+  .hp-btn-ink {
+    background-color: #1a1a1a;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    border-radius: 4px;
+    height: 44px;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background-color 0.15s ease-in-out;
+    cursor: pointer;
+  }
+  .hp-btn-ink:hover {
+    background-color: #000000;
+  }
+}
+
+/* HP Signature Chevron Slashes (45°/60° Parallelogram) */
+.hp-chevron {
+  width: 14px;
+  background-color: #024ad8;
+  transform: skewX(-24deg);
+  border-radius: 0px;
+}
+
+/* View Transitions API (Modern Web Guidance) */
+@keyframes vtFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes vtFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+::view-transition-old(root) {
+  animation: 140ms cubic-bezier(0.4, 0, 1, 1) both vtFadeOut;
+}
+
+::view-transition-new(root) {
+  animation: 180ms cubic-bezier(0, 0, 0.2, 1) 30ms both vtFadeIn;
+}
+
+/* Semantic Progress Ring - HP Electric Blue */
+@property --ring-value {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+.progress-ring-wrapper {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+progress.progress-ring {
+  --size: 76px;
+  --thickness: 7px;
+  --track-color: #f7f7f7;
+  --fill-color: #024ad8;
+  --ring-value: 0;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  appearance: none;
+  -webkit-appearance: none;
+  background: conic-gradient(
+    var(--fill-color) calc(var(--ring-value) * 1%),
+    var(--track-color) 0
+  );
+  border: var(--thickness) solid transparent;
+  background-origin: border-box;
+  background-clip: border-area;
+  transition: --ring-value 0s ease-in-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  progress.progress-ring {
+    transition: --ring-value 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@supports not (background-clip: border-area) {
+  progress.progress-ring {
+    mask-image: radial-gradient(
+      transparent calc(50% - var(--thickness)),
+      black calc(50% - var(--thickness) + 0.5px)
+    );
+    -webkit-mask-image: radial-gradient(
+      transparent calc(50% - var(--thickness)),
+      black calc(50% - var(--thickness) + 0.5px)
+    );
+    border: 0;
+  }
+}
+
+/* Hide native browser progress bar internal renderings */
+progress.progress-ring::-webkit-progress-bar {
+  display: none;
+  background: none;
+}
+progress.progress-ring::-webkit-progress-value {
+  display: none;
+  background: none;
+}
+progress.progress-ring::-moz-progress-bar {
+  display: none;
+  background: none;
+}
