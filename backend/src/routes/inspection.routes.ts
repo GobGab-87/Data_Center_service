@@ -27,7 +27,9 @@ router.get('/history', getRoundsHistory);
 router.get('/round/:roundId', getRoundDetails);
 
 // Admin-only inspection routes
+router.put('/log/:logId/admin-edit', requireAdmin, adminEditLog);
 router.put('/logs/:logId/admin-edit', requireAdmin, adminEditLog);
+router.delete('/round/:roundId', requireAdmin, deleteRound);
 router.delete('/rounds/:roundId', requireAdmin, deleteRound);
 
 export default router;

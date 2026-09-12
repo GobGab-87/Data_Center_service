@@ -116,16 +116,24 @@ export const InspectionHistory: React.FC = () => {
     try {
       setEditLogLoading(true);
       const res = await inspectionApi.adminEditLog(editingLog.id!, editLogForm);
-      showFeedback('success', 'แก้ไขบันทึกและบันทึก Audit Log สำเร็จ');
+      showFeedback('success', res.data.message || 'แก้ไขบันทึกและบันทึก Audit Log สำเร็จ');
 
-      // Update in selectedRound state
-      if (selectedRound && selectedRound.logs) {
-        setSelectedRound({
-          ...selectedRound,
-          logs: selectedRound.logs.map((l) => (l.id === editingLog.id ? res.data.log : l)),
-        });
+      // Update in selectedRound state and re-fetch round details to ensure fresh data
+      if (selectedRound) {
+        try {
+          const detailRes = await inspectionApi.getRoundDetails(selectedRound.id);
+          setSelectedRound(detailRes.data.round);
+        } catch {
+          if (selectedRound.logs) {
+            setSelectedRound({
+              ...selectedRound,
+              logs: selectedRound.logs.map((l) => (l.id === editingLog.id ? res.data.log : l)),
+            });
+          }
+        }
       }
       setEditingLog(null);
+      await loadHistory();
     } catch (err: any) {
       showFeedback('error', err.response?.data?.message || 'เกิดข้อผิดพลาดในการแก้ไขบันทึก');
     } finally {
@@ -138,7 +146,7 @@ export const InspectionHistory: React.FC = () => {
       {/* Feedback Alert */}
       {feedback && (
         <div
-          className={`p-3.5 rounded-hp-md border text-xs flex items-center gap-2 animate-fadeIn bg-white shadow-xs fixed bottom-5 right-5 z-50 ${
+          className={`p-3.5 rounded-hp-md border text-xs flex items-center gap-2 animate-fadeIn bg-white shadow-xs fixed bottom-5 right-5 z-[100] ${
             feedback.type === 'success'
               ? 'border-emerald-200 text-emerald-800'
               : 'border-rose-200 text-rose-800'
