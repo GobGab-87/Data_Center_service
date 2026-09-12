@@ -25,12 +25,14 @@ export const UserApproval: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<{
     fullName: string;
+    employeeId: string;
     department: string;
     username: string;
     role: 'ADMIN' | 'OPERATOR';
     status: 'PENDING' | 'APPROVED' | 'REJECTED';
   }>({
     fullName: '',
+    employeeId: '',
     department: '',
     username: '',
     role: 'OPERATOR',
@@ -76,6 +78,7 @@ export const UserApproval: React.FC = () => {
     setEditingUser(user);
     setEditForm({
       fullName: user.fullName || '',
+      employeeId: user.employeeId || '',
       department: user.department || '',
       username: user.username || '',
       role: user.role || 'OPERATOR',
@@ -187,7 +190,14 @@ export const UserApproval: React.FC = () => {
                     <UserIcon className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-bold text-hp-ink text-sm">{u.fullName}</div>
+                    <div className="font-bold text-hp-ink text-sm flex items-center gap-2">
+                      <span>{u.fullName}</span>
+                      {u.employeeId && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-hp-xs bg-hp-cloud text-hp-primary border border-hp-hairline font-semibold">
+                          ID: {u.employeeId}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-hp-graphite mt-0.5">
                       Username: <span className="font-mono font-semibold text-hp-ink">{u.username}</span> | แผนก: {u.department || '-'}
                     </div>
@@ -258,7 +268,14 @@ export const UserApproval: React.FC = () => {
               {users.map((u) => (
                 <tr key={u.id} className="hover:bg-hp-cloud/60 transition-colors">
                   <td className="px-4 py-3.5">
-                    <div className="font-semibold text-hp-ink">{u.fullName}</div>
+                    <div className="font-semibold text-hp-ink flex items-center gap-1.5">
+                      <span>{u.fullName}</span>
+                      {u.employeeId && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-hp-xs bg-hp-cloud border border-hp-hairline text-hp-primary font-semibold">
+                          {u.employeeId}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[11px] text-hp-graphite font-mono">@{u.username}</div>
                   </td>
                   <td className="px-4 py-3.5 text-hp-charcoal">{u.department || '-'}</td>
@@ -329,17 +346,31 @@ export const UserApproval: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-hp-ink mb-1">
-                  ชื่อ - นามสกุล *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.fullName}
-                  onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                  className="w-full h-10 px-3.5 rounded-hp-md bg-white border border-hp-steel text-hp-ink text-xs focus:outline-none focus:border-hp-ink"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-hp-ink mb-1">
+                    ชื่อ - นามสกุล *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.fullName}
+                    onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                    className="w-full h-10 px-3.5 rounded-hp-md bg-white border border-hp-steel text-hp-ink text-xs focus:outline-none focus:border-hp-ink"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-hp-ink mb-1">
+                    รหัสพนักงาน (Employee ID)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.employeeId}
+                    onChange={(e) => setEditForm({ ...editForm, employeeId: e.target.value })}
+                    placeholder="เช่น EMP-001"
+                    className="w-full h-10 px-3.5 rounded-hp-md bg-white border border-hp-steel text-hp-ink text-xs focus:outline-none focus:border-hp-ink font-mono"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

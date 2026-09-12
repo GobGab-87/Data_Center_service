@@ -8,7 +8,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   login: (credentials: { username: string; password: string }) => Promise<void>;
-  register: (data: { username: string; password: string; fullName: string; department?: string }) => Promise<string>;
+  register: (data: { username: string; password: string; fullName: string; department?: string; employeeId?: string }) => Promise<string>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
 }
@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('dc_user', JSON.stringify(loggedUser));
   };
 
-  const register = async (data: { username: string; password: string; fullName: string; department?: string }) => {
+  const register = async (data: { username: string; password: string; fullName: string; department?: string; employeeId?: string }) => {
     const res = await authApi.register(data);
     return res.data.message;
   };

@@ -13,6 +13,7 @@ model User {
   username     String            @unique
   passwordHash String
   fullName     String
+  employeeId   String?
   department   String?
   role         String            @default("OPERATOR") // "ADMIN", "OPERATOR"
   status       String            @default("PENDING")  // "PENDING", "APPROVED", "REJECTED"

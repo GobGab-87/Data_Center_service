@@ -2,6 +2,7 @@ export interface User {
   id: string;
   username: string;
   fullName: string;
+  employeeId?: string;
   department?: string;
   role: 'ADMIN' | 'OPERATOR';
   status: 'PENDING' | 'APPROVED' | 'REJECTED';

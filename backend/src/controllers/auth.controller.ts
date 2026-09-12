@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dc-ops-secret-key-2026-super-secur
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, password, fullName, department } = req.body;
+    const { username, password, fullName, department, employeeId } = req.body;
 
     if (!username || !password || !fullName) {
       res.status(400).json({ message: 'กรุณากรอกข้อมูลให้ครบถ้วน (ชื่อผู้ใช้, รหัสผ่าน, ชื่อ-นามสกุล)' });
@@ -35,6 +35,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         username: username.trim().toLowerCase(),
         passwordHash,
         fullName: fullName.trim(),
+        employeeId: employeeId?.trim() || null,
         department: department?.trim() || 'Data Center Operations',
         role: isFirstUser ? 'ADMIN' : 'OPERATOR',
         status: isFirstUser ? 'APPROVED' : 'PENDING',
@@ -49,6 +50,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         id: newUser.id,
         username: newUser.username,
         fullName: newUser.fullName,
+        employeeId: newUser.employeeId,
         role: newUser.role,
         status: newUser.status,
       },
@@ -112,6 +114,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         id: user.id,
         username: user.username,
         fullName: user.fullName,
+        employeeId: user.employeeId,
         department: user.department,
         role: user.role,
         status: user.status,
@@ -136,6 +139,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
         id: true,
         username: true,
         fullName: true,
+        employeeId: true,
         department: true,
         role: true,
         status: true,
@@ -162,6 +166,7 @@ export const getPendingUsers = async (req: AuthRequest, res: Response): Promise<
         id: true,
         username: true,
         fullName: true,
+        employeeId: true,
         department: true,
         role: true,
         status: true,
@@ -183,6 +188,7 @@ export const getAllUsers = async (req: AuthRequest, res: Response): Promise<void
         id: true,
         username: true,
         fullName: true,
+        employeeId: true,
         department: true,
         role: true,
         status: true,
@@ -217,6 +223,7 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
         id: true,
         username: true,
         fullName: true,
+        employeeId: true,
         role: true,
         status: true,
       },
@@ -234,7 +241,7 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
 export const updateUserProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.params.userId as string;
-    const { fullName, department, username, role, status } = req.body;
+    const { fullName, department, username, role, status, employeeId } = req.body;
 
     const existing = await prisma.user.findUnique({ where: { id: userId } });
     if (!existing) {
@@ -254,6 +261,7 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
       where: { id: userId },
       data: {
         ...(fullName !== undefined ? { fullName } : {}),
+        ...(employeeId !== undefined ? { employeeId } : {}),
         ...(department !== undefined ? { department } : {}),
         ...(username !== undefined ? { username } : {}),
         ...(role && ['ADMIN', 'OPERATOR'].includes(role) ? { role } : {}),
@@ -263,6 +271,7 @@ export const updateUserProfile = async (req: AuthRequest, res: Response): Promis
         id: true,
         username: true,
         fullName: true,
+        employeeId: true,
         department: true,
         role: true,
         status: true,

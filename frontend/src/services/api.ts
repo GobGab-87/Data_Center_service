@@ -50,7 +50,7 @@ export const authApi = {
   getAllUsers: () => api.get<{ users: User[] }>('/auth/users'),
   updateUserStatus: (userId: string, data: { status: string; role?: string }) =>
     api.patch(`/auth/users/${userId}/status`, data),
-  updateUser: (userId: string, data: { fullName?: string; department?: string; username?: string; role?: string; status?: string }) =>
+  updateUser: (userId: string, data: { fullName?: string; department?: string; username?: string; role?: string; status?: string; employeeId?: string }) =>
     api.put<{ message: string; user: User }>(`/auth/users/${userId}`, data),
   deleteUser: (userId: string) => api.delete<{ message: string }>(`/auth/users/${userId}`),
 };

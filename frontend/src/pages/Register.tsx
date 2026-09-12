@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Lock, User as UserIcon, Building, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Lock, User as UserIcon, Building, CheckCircle, AlertCircle, ArrowLeft, CreditCard } from 'lucide-react';
 
 export const Register: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -9,6 +9,7 @@ export const Register: React.FC = () => {
     password: '',
     confirmPassword: '',
     fullName: '',
+    employeeId: '',
     department: 'Data Center Facilities & Operations',
   });
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +22,11 @@ export const Register: React.FC = () => {
     e.preventDefault();
     setError(null);
     setSuccessMessage(null);
+
+    if (!formData.employeeId.trim()) {
+      setError('กรุณาระบุรหัสพนักงาน');
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('รหัสผ่านและยืนยันรหัสผ่านไม่ตรงกัน');
@@ -39,6 +45,7 @@ export const Register: React.FC = () => {
         username: formData.username,
         password: formData.password,
         fullName: formData.fullName,
+        employeeId: formData.employeeId,
         department: formData.department,
       });
       setSuccessMessage(msg);
@@ -105,6 +112,25 @@ export const Register: React.FC = () => {
                   placeholder="เช่น นายธนากร มั่นคง"
                   className="w-full h-11 px-3.5 rounded-hp-md bg-white border border-hp-steel text-hp-ink placeholder:text-hp-graphite text-sm focus:outline-none focus:border-hp-ink focus:ring-1 focus:ring-hp-ink transition-all"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-hp-charcoal mb-1 uppercase tracking-wide text-[11px]">
+                  รหัสพนักงาน (Employee ID) *
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-hp-graphite">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={formData.employeeId}
+                    onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                    placeholder="เช่น EMP-001 หรือ 6500123"
+                    className="w-full h-11 pl-10 pr-3.5 rounded-hp-md bg-white border border-hp-steel text-hp-ink placeholder:text-hp-graphite text-sm focus:outline-none focus:border-hp-ink focus:ring-1 focus:ring-hp-ink transition-all font-mono"
+                  />
+                </div>
               </div>
 
               <div>
