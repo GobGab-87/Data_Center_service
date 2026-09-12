@@ -50,6 +50,9 @@ export const authApi = {
   getAllUsers: () => api.get<{ users: User[] }>('/auth/users'),
   updateUserStatus: (userId: string, data: { status: string; role?: string }) =>
     api.patch(`/auth/users/${userId}/status`, data),
+  updateUser: (userId: string, data: { fullName?: string; department?: string; username?: string; role?: string; status?: string }) =>
+    api.put<{ message: string; user: User }>(`/auth/users/${userId}`, data),
+  deleteUser: (userId: string) => api.delete<{ message: string }>(`/auth/users/${userId}`),
 };
 
 export const roomApi = {
@@ -85,6 +88,12 @@ export const inspectionApi = {
     defectNote?: string;
     photos?: { photoUrl: string; caption?: string }[];
   }) => api.post('/inspections/log', data),
+  deleteEquipmentLog: (roundId: string, equipmentId: string) =>
+    api.delete<{ message: string; equipmentId: string }>(`/inspections/round/${roundId}/equipment/${equipmentId}`),
+  adminEditLog: (logId: string, data: { readings?: any; isDefect?: boolean; defectNote?: string; reason?: string }) =>
+    api.put<{ message: string; log: InspectionLog }>(`/inspections/log/${logId}/admin-edit`, data),
+  deleteRound: (roundId: string) =>
+    api.delete<{ message: string }>(`/inspections/round/${roundId}`),
   batchSync: (data: { round?: any; logs: any[] }) =>
     api.post<{ message: string; syncedCount: number; roundId: string }>('/inspections/sync', data),
   getHistory: (params?: { page?: number; limit?: number }) =>

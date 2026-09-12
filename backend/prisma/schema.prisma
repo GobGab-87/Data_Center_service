@@ -58,8 +58,8 @@ model Equipment {
 model InspectionRound {
   id          String          @id @default(uuid())
   shiftName   String          // "กะเช้า (Morning)", "กะบ่าย (Afternoon)", "กะดึก (Night)"
-  inspectorId String
-  inspector   User            @relation(fields: [inspectorId], references: [id])
+  inspectorId String?
+  inspector   User?           @relation(fields: [inspectorId], references: [id], onDelete: SetNull)
   status      String          @default("IN_PROGRESS") // "IN_PROGRESS", "COMPLETED"
   startedAt   DateTime        @default(now())
   completedAt DateTime?
@@ -68,15 +68,16 @@ model InspectionRound {
 }
 
 model InspectionLog {
-  id          String        @id @default(uuid())
+  id          String          @id @default(uuid())
   roundId     String
   round       InspectionRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
   equipmentId String
-  equipment   Equipment     @relation(fields: [equipmentId], references: [id])
-  readings    String        // JSON string of actual measurements: { v_a: 230, kw: 45.2, temp: 22.5, humidity: 55 }
-  isDefect    Boolean       @default(false)
+  equipment   Equipment       @relation(fields: [equipmentId], references: [id])
+  readings    String          // JSON string of actual measurements: { v_a: 230, kw: 45.2, temp: 22.5, humidity: 55 }
+  isDefect    Boolean         @default(false)
   defectNote  String?
-  recordedAt  DateTime      @default(now())
+  editHistory String?         // JSON string of audit trail: [{ editedBy, editedAt, diff, reason }]
+  recordedAt  DateTime        @default(now())
   photos      DefectPhoto[]
 }
 

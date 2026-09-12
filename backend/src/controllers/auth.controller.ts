@@ -230,3 +230,73 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
     res.status(500).json({ message: 'เกิดข้อผิดพลาดในการปรับปรุงสถานะ', error: error.message });
   }
 };
+
+export const updateUserProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.userId as string;
+    const { fullName, department, username, role, status } = req.body;
+
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
+      res.status(404).json({ message: 'ไม่พบผู้ใช้นี้ในระบบ' });
+      return;
+    }
+
+    if (username && username !== existing.username) {
+      const duplicate = await prisma.user.findUnique({ where: { username } });
+      if (duplicate) {
+        res.status(400).json({ message: 'ชื่อผู้ใช้งาน (Username) นี้มีผู้อื่นใช้งานแล้ว' });
+        return;
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(fullName !== undefined ? { fullName } : {}),
+        ...(department !== undefined ? { department } : {}),
+        ...(username !== undefined ? { username } : {}),
+        ...(role && ['ADMIN', 'OPERATOR'].includes(role) ? { role } : {}),
+        ...(status && ['APPROVED', 'PENDING', 'REJECTED'].includes(status) ? { status } : {}),
+      },
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+        department: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({ message: 'แก้ไขข้อมูลผู้ใช้สำเร็จ', user: updatedUser });
+  } catch (error: any) {
+    res.status(500).json({ message: 'เกิดข้อผิดพลาดในการแก้ไขข้อมูลผู้ใช้', error: error.message });
+  }
+};
+
+export const deleteUser = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.userId as string;
+
+    if (req.user?.id === userId) {
+      res.status(400).json({ message: 'ไม่สามารถลบบัญชีของตัวเองได้' });
+      return;
+    }
+
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
+      res.status(404).json({ message: 'ไม่พบผู้ใช้นี้ในระบบ' });
+      return;
+    }
+
+    await prisma.user.delete({ where: { id: userId } });
+
+    res.json({ message: `ลบผู้ใช้ ${existing.fullName} (@${existing.username}) เรียบร้อยแล้ว` });
+  } catch (error: any) {
+    res.status(500).json({ message: 'เกิดข้อผิดพลาดในการลบผู้ใช้', error: error.message });
+  }
+};
+

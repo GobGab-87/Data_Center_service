@@ -65,6 +65,7 @@ export interface InspectionLog {
   readings: Record<string, any>;
   isDefect: boolean;
   defectNote?: string;
+  editHistory?: string;
   recordedAt?: string;
   photos?: DefectPhoto[];
 }

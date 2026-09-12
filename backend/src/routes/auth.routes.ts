@@ -6,6 +6,8 @@ import {
   getPendingUsers,
   getAllUsers,
   updateUserStatus,
+  updateUserProfile,
+  deleteUser,
 } from '../controllers/auth.controller.js';
 import { authenticate, requireAdmin } from '../middleware/auth.middleware.js';
 
@@ -19,5 +21,7 @@ router.get('/me', authenticate, getMe);
 router.get('/pending', authenticate, requireAdmin, getPendingUsers);
 router.get('/users', authenticate, requireAdmin, getAllUsers);
 router.patch('/users/:userId/status', authenticate, requireAdmin, updateUserStatus);
+router.put('/users/:userId', authenticate, requireAdmin, updateUserProfile);
+router.delete('/users/:userId', authenticate, requireAdmin, deleteUser);
 
 export default router;

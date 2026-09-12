@@ -75,6 +75,13 @@ export const offlineDb = {
     await db.pendingLogs.clear();
   },
 
+  async deletePendingLog(equipmentId: string) {
+    const item = await db.pendingLogs.where('equipmentId').equals(equipmentId).first();
+    if (item && item.id) {
+      await db.pendingLogs.delete(item.id);
+    }
+  },
+
   // Auto sync process
   async syncPendingLogs(): Promise<{ success: boolean; syncedCount: number; message: string }> {
     if (!navigator.onLine) {

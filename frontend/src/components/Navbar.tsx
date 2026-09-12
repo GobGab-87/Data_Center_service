@@ -102,7 +102,6 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: 'แดชบอร์ดภาพรวม', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'บันทึกเดินตรวจรอบ', path: '/inspection', icon: ClipboardCheck },
     { name: 'ประวัติการตรวจ', path: '/history', icon: History },
   ];
 

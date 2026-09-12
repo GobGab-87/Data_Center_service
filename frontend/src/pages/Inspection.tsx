@@ -22,7 +22,16 @@ import {
   ChevronRight,
   ChevronDown,
   ArrowRight,
+  Trash2,
+  Lock,
 } from 'lucide-react';
+
+const getAutoShiftName = (): string => {
+  const h = new Date().getHours();
+  if (h >= 8 && h < 16) return 'กะเช้า (08:00 - 16:00 น.)';
+  if (h >= 16 && h < 24) return 'กะบ่าย (16:00 - 24:00 น.)';
+  return 'กะดึก (00:00 - 08:00 น.)';
+};
 
 export const Inspection: React.FC = () => {
   // State
@@ -45,7 +54,7 @@ export const Inspection: React.FC = () => {
   const [isQrOpen, setIsQrOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'offline'; text: string } | null>(null);
-  const [newShiftName, setNewShiftName] = useState('กะเช้า (08:00 - 16:00 น.)');
+  const [newShiftName, setNewShiftName] = useState<string>(getAutoShiftName());
   const [recordedEquipmentIds, setRecordedEquipmentIds] = useState<Set<string>>(new Set());
   const [recordedDataMap, setRecordedDataMap] = useState<Record<string, {
     readings: Record<string, any>;
@@ -172,10 +181,66 @@ export const Inspection: React.FC = () => {
     setLoading(true);
     try {
       const res = await inspectionApi.startRound({ shiftName: newShiftName });
-      setActiveRound(res.data.round);
-      showToast('success', 'เริ่มรอบการเดินตรวจเรียบร้อยแล้ว');
+      const createdRound = res.data.round;
+      setActiveRound(createdRound);
+      showToast('success', `เริ่มบันทึกเดินตรวจรอบ ${createdRound.shiftName} เรียบร้อยแล้ว พร้อมบันทึกข้อมูล`);
+
+      // Immediately select first equipment so user can input right away
+      const allEqs = rooms.flatMap((r) => r.equipments || []);
+      if (allEqs.length > 0) {
+        selectEquipment(allEqs[0]);
+        setTimeout(() => {
+          formRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
     } catch (err: any) {
       showToast('error', err.response?.data?.message || 'ไม่สามารถเริ่มรอบตรวจได้');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteEquipmentLog = async () => {
+    if (!selectedEquipment || !activeRound) return;
+
+    if (
+      !window.confirm(
+        `ต้องการลบผลการตรวจของอุปกรณ์ "${selectedEquipment.name}" (${selectedEquipment.code}) ใช่หรือไม่?\n\nผลการตรวจจุดนี้จะถูกลบออก และสถานะจะกลับเป็น 'ยังไม่ตรวจ'`
+      )
+    ) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (navigator.onLine) {
+        await inspectionApi.deleteEquipmentLog(activeRound.id, selectedEquipment.id);
+      } else {
+        await offlineDb.deletePendingLog(selectedEquipment.id);
+      }
+
+      setRecordedEquipmentIds((prev) => {
+        const next = new Set(prev);
+        next.delete(selectedEquipment.id);
+        return next;
+      });
+
+      setRecordedDataMap((prev) => {
+        const next = { ...prev };
+        delete next[selectedEquipment.id];
+        return next;
+      });
+
+      // Clear form inputs
+      setReadings({});
+      setIsDefect(false);
+      setDefectNote('');
+      setPhotoFile(null);
+      setPhotoPreview(null);
+
+      showToast('success', `ลบผลตรวจของ ${selectedEquipment.name} เรียบร้อยแล้ว (สถานะกลับเป็นยังไม่ตรวจ)`);
+    } catch (err: any) {
+      showToast('error', err.response?.data?.message || 'เกิดข้อผิดพลาดในการลบผลการตรวจ');
     } finally {
       setLoading(false);
     }
@@ -224,13 +289,14 @@ export const Inspection: React.FC = () => {
         `แจ้งเตือน: การเดินตรวจยังไม่ครบถ้วนทุกจุด\n\n` +
         `สถานะปัจจุบัน: ตรวจแล้ว ${completedRoomsCount}/${rooms.length} ห้อง (${loggedEquipmentsCount}/${totalEquipmentsCount} อุปกรณ์)\n\n` +
         `รายการที่ยังไม่ได้บันทึก:\n${uninspectedSummary}${moreCount}\n\n` +
+        `คำเตือน: เมื่อปิดรอบการตรวจแล้ว ระบบจะล็อคข้อมูลทั้งหมด (Lockdown) จะไม่สามารถแก้ไขหรือลบผลตรวจในรอบนี้ได้อีก\n\n` +
         `ต้องการยืนยันการปิดรอบตรวจก่อนกำหนดหรือไม่?`;
 
       if (!window.confirm(confirmMsg)) return;
     } else {
       if (
         !window.confirm(
-          `การเดินตรวจครบถ้วนทุกรายการ (${totalEquipmentsCount}/${totalEquipmentsCount} อุปกรณ์)\n\nต้องการยืนยันการปิดรอบตรวจนี้หรือไม่?`
+          `การเดินตรวจครบถ้วนทุกรายการ (${totalEquipmentsCount}/${totalEquipmentsCount} อุปกรณ์)\n\nคำเตือน: เมื่อปิดรอบการตรวจแล้ว ระบบจะล็อคข้อมูลทั้งหมด (Lockdown) จะไม่สามารถแก้ไขหรือลบผลตรวจในรอบนี้ได้อีกต่อไป\n\nต้องการยืนยันการปิดรอบตรวจนี้หรือไม่?`
         )
       ) {
         return;
@@ -242,7 +308,8 @@ export const Inspection: React.FC = () => {
       await inspectionApi.completeRound(activeRound.id);
       setActiveRound(null);
       setRecordedEquipmentIds(new Set());
-      showToast('success', 'ปิดรอบการเดินตรวจเรียบร้อยแล้ว');
+      setRecordedDataMap({});
+      showToast('success', 'ปิดรอบการเดินตรวจเรียบร้อยแล้ว ข้อมูลถูกล็อคตามระเบียบสมบูรณ์');
     } catch (err: any) {
       showToast('error', err.response?.data?.message || 'เกิดข้อผิดพลาดในการปิดรอบ');
     } finally {
@@ -437,18 +504,18 @@ export const Inspection: React.FC = () => {
       )}
 
       {/* Top Banner: Round Controls & Overall Progress */}
-      <div className="p-4 sm:p-5 rounded-xl bg-white border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {activeRound ? (
+      {activeRound ? (
+        <div className="p-4 sm:p-5 rounded-hp-xl bg-white border border-hp-hairline shadow-hp-soft flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-1">
             <ProgressRing
               value={overallPercent}
               size={56}
               thickness={5}
-              fillColor={isAllRoomsComplete ? '#10b981' : '#2563eb'}
-              trackColor="#f1f5f9"
+              fillColor={isAllRoomsComplete ? '#10b981' : '#024ad8'}
+              trackColor="#f7f7f7"
               ariaLabel="ความคืบหน้าการตรวจรอบปัจจุบัน"
             >
-              <span className="text-xs font-bold font-mono tabular-nums text-slate-900">
+              <span className="text-xs font-bold font-mono tabular-nums text-hp-ink">
                 {overallPercent}%
               </span>
             </ProgressRing>
@@ -456,84 +523,96 @@ export const Inspection: React.FC = () => {
             <div className="space-y-1 flex-1">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                <span className="text-xs font-semibold uppercase tracking-wider text-hp-ink">
                   รอบการเดินตรวจ: {activeRound.shiftName}
                 </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-hp-xs bg-hp-cloud text-hp-charcoal font-mono border border-hp-hairline font-medium">
+                  กำลังดำเนินการ
+                </span>
               </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-hp-graphite">
                 <span className="flex items-center gap-1 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <Clock className="w-3.5 h-3.5 text-hp-graphite" />
                   เริ่มตรวจ: {new Date(activeRound.startedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.
                 </span>
                 <span>•</span>
-                <span className="text-slate-700 font-medium">
+                <span className="text-hp-charcoal font-medium">
                   เสร็จสิ้น {completedRoomsCount} จาก {rooms.length} ห้อง
                 </span>
                 <span>•</span>
-                <span className="text-blue-700 font-mono font-semibold">
+                <span className="text-hp-primary font-mono font-semibold">
                   {loggedEquipmentsCount} / {totalEquipmentsCount} อุปกรณ์
                 </span>
               </div>
             </div>
           </div>
-        ) : (
-          <div>
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <Play className="w-4 h-4 text-blue-600" />
-              <span>ยังไม่มีรอบตรวจที่กำลังดำเนินการ</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              เลือกรอบเวลาการเดินตรวจเพื่อเริ่มต้นบันทึกผล
-            </p>
-          </div>
-        )}
 
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={() => setIsQrOpen(true)}
-            className="h-10 px-4 rounded-hp-md bg-white hover:bg-hp-cloud border border-hp-steel text-hp-ink text-xs uppercase tracking-hp-btn font-semibold flex items-center gap-2 shadow-2xs transition-colors cursor-pointer"
-          >
-            <QrCode className="w-3.5 h-3.5 text-hp-primary" />
-            <span>สแกน QR Code</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => setIsQrOpen(true)}
+              className="h-10 px-4 rounded-hp-md bg-white hover:bg-hp-cloud border border-hp-steel text-hp-ink text-xs uppercase tracking-hp-btn font-semibold flex items-center gap-2 shadow-2xs transition-colors cursor-pointer"
+            >
+              <QrCode className="w-3.5 h-3.5 text-hp-primary" />
+              <span>สแกน QR Code</span>
+            </button>
 
-          {activeRound ? (
             <button
               onClick={handleCompleteRound}
               disabled={loading}
               className={`h-10 px-5 rounded-hp-md text-xs uppercase tracking-hp-btn font-semibold transition-all flex items-center gap-2 shadow-2xs cursor-pointer ${
                 isAllRoomsComplete
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                  : 'bg-white hover:bg-hp-cloud border border-hp-steel text-hp-ink'
+                  : 'bg-hp-ink hover:bg-hp-charcoal text-white'
               }`}
             >
-              <Check className="w-4 h-4" />
+              <Lock className="w-3.5 h-3.5" />
               <span>{isAllRoomsComplete ? 'ปิดรอบการตรวจ (ครบถ้วน)' : 'เสร็จสิ้นและปิดรอบ'}</span>
             </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <select
-                value={newShiftName}
-                onChange={(e) => setNewShiftName(e.target.value)}
-                className="h-10 px-3 rounded-hp-md bg-white border border-hp-steel text-xs text-hp-ink shadow-2xs cursor-pointer focus:outline-none focus:border-hp-ink"
-              >
-                <option value="กะเช้า (08:00 - 16:00 น.)">กะเช้า (08:00 - 16:00 น.)</option>
-                <option value="กะบ่าย (16:00 - 24:00 น.)">กะบ่าย (16:00 - 24:00 น.)</option>
-                <option value="กะดึก (00:00 - 08:00 น.)">กะดึก (00:00 - 08:00 น.)</option>
-              </select>
-              <button
-                onClick={handleStartRound}
-                disabled={loading}
-                className="hp-btn-primary h-10 px-4 text-xs"
-              >
-                <Play className="w-3.5 h-3.5" />
-                <span>เริ่มรอบตรวจ</span>
-              </button>
-            </div>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="p-6 rounded-hp-xl bg-white border border-hp-hairline shadow-hp-soft flex flex-col md:flex-row items-center justify-between gap-6 border-l-4 border-l-hp-primary">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-hp-md bg-hp-cloud border border-hp-hairline flex items-center justify-center text-hp-primary shrink-0 shadow-2xs">
+              <Play className="w-6 h-6 text-hp-primary fill-hp-primary/20" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold tracking-wide uppercase text-hp-primary bg-hp-primary-soft/40 px-2 py-0.5 rounded-hp-xs">
+                  เริ่มงานกะการตรวจรอบ (Shift Handover & Inspection)
+                </span>
+              </div>
+              <h2 className="text-lg font-medium text-hp-ink mt-1">
+                เริ่มบันทึกเดินตรวจรอบศูนย์ข้อมูล
+              </h2>
+              <p className="text-xs text-hp-graphite mt-0.5">
+                เลือกช่วงเวลาการเดินตรวจประจำกะ และกดเริ่มบันทึก ระบบจะเปิดฟอร์มอุปกรณ์จุดแรกให้ลงบันทึกได้ทันที
+              </p>
+            </div>
+          </div>
+
+          <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <select
+              value={newShiftName}
+              onChange={(e) => setNewShiftName(e.target.value)}
+              className="h-11 px-4 rounded-hp-md bg-white border border-hp-steel text-xs font-medium text-hp-ink shadow-2xs cursor-pointer focus:outline-none focus:border-hp-ink"
+            >
+              <option value="กะเช้า (08:00 - 16:00 น.)">กะเช้า (08:00 - 16:00 น.)</option>
+              <option value="กะบ่าย (16:00 - 24:00 น.)">กะบ่าย (16:00 - 24:00 น.)</option>
+              <option value="กะดึก (00:00 - 08:00 น.)">กะดึก (00:00 - 08:00 น.)</option>
+            </select>
+
+            <button
+              onClick={handleStartRound}
+              disabled={loading}
+              className="hp-btn-primary h-11 px-6 text-xs flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
+            >
+              <Play className="w-4 h-4" />
+              <span>เริ่มบันทึกเดินตรวจรอบ</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Direct Equipment Selector Bar */}
       <div className="p-4 rounded-hp-xl bg-white border border-hp-hairline shadow-hp-soft flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -751,7 +830,7 @@ export const Inspection: React.FC = () => {
                     {recordedEquipmentIds.has(selectedEquipment.id) && (
                       <span className="text-[10px] text-emerald-800 font-medium flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-hp-xs border border-emerald-200">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        บันทึกแล้ว (แสดงค่าที่บันทึกไว้)
+                        บันทึกแล้ว (สามารถแก้ไขหรือลบค่าได้ตลอดจนกว่าจะปิดรอบ)
                       </span>
                     )}
                   </div>
@@ -897,12 +976,27 @@ export const Inspection: React.FC = () => {
                 )}
               </div>
 
-              {/* Submit Button */}
-              <div className="pt-4 border-t border-hp-hairline flex justify-end">
+              {/* Submit and Delete Action Buttons */}
+              <div className="pt-4 border-t border-hp-hairline flex flex-col sm:flex-row items-center justify-between gap-3">
+                {recordedEquipmentIds.has(selectedEquipment.id) && activeRound ? (
+                  <button
+                    type="button"
+                    onClick={handleDeleteEquipmentLog}
+                    disabled={loading}
+                    className="h-11 px-4 rounded-hp-md border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer w-full sm:w-auto"
+                    title="ลบผลการตรวจจุดนี้"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>ลบผลตรวจจุดนี้</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
                 <button
                   type="submit"
                   disabled={loading}
-                  className="hp-btn-primary w-full sm:w-auto"
+                  className="hp-btn-primary w-full sm:w-auto h-11 px-6"
                 >
                   {loading ? (
                     <span>กำลังบันทึกข้อมูล...</span>

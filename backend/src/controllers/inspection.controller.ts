@@ -123,6 +123,17 @@ export const recordEquipmentLog = async (req: AuthRequest, res: Response): Promi
       return;
     }
 
+    const round = await prisma.inspectionRound.findUnique({ where: { id: roundId } });
+    if (!round) {
+      res.status(404).json({ message: 'ไม่พบรอบการเดินตรวจนี้' });
+      return;
+    }
+
+    if (round.status === 'COMPLETED' && req.user?.role !== 'ADMIN') {
+      res.status(403).json({ message: 'รอบการเดินตรวจนี้เสร็จสิ้นและปิดรอบแล้ว ไม่สามารถแก้ไขข้อมูลได้' });
+      return;
+    }
+
     // Check if log already exists for this equipment in this round
     const existingLog = await prisma.inspectionLog.findFirst({
       where: { roundId, equipmentId },
@@ -321,3 +332,143 @@ export const getRoundDetails = async (req: AuthRequest, res: Response): Promise<
     res.status(500).json({ message: 'เกิดข้อผิดพลาด', error: error.message });
   }
 };
+
+// Delete equipment log in an active round (or by Admin)
+export const deleteEquipmentLog = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const roundId = req.params.roundId as string;
+    const equipmentId = req.params.equipmentId as string;
+
+    const round = await prisma.inspectionRound.findUnique({ where: { id: roundId } });
+    if (!round) {
+      res.status(404).json({ message: 'ไม่พบรอบการเดินตรวจนี้' });
+      return;
+    }
+
+    if (round.status === 'COMPLETED' && req.user?.role !== 'ADMIN') {
+      res.status(403).json({ message: 'รอบการเดินตรวจนี้ปิดรอบเสร็จสิ้นแล้ว ไม่สามารถลบข้อมูลได้' });
+      return;
+    }
+
+    const log = await prisma.inspectionLog.findFirst({
+      where: { roundId, equipmentId },
+    });
+
+    if (!log) {
+      res.status(404).json({ message: 'ไม่พบบันทึกการตรวจของอุปกรณ์นี้ในรอบปัจจุบัน' });
+      return;
+    }
+
+    await prisma.inspectionLog.delete({ where: { id: log.id } });
+
+    res.json({ message: 'ลบผลการตรวจจุดนี้เรียบร้อยแล้ว', equipmentId });
+  } catch (error: any) {
+    res.status(500).json({ message: 'เกิดข้อผิดพลาดในการลบผลการตรวจ', error: error.message });
+  }
+};
+
+// Admin Edit with Audit Trail
+export const adminEditLog = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const logId = req.params.logId as string;
+    const { readings, isDefect, defectNote, reason } = req.body;
+
+    const existingLog = await prisma.inspectionLog.findUnique({
+      where: { id: logId },
+      include: {
+        equipment: { include: { room: true, type: true } },
+      },
+    });
+
+    if (!existingLog) {
+      res.status(404).json({ message: 'ไม่พบบันทึกข้อมูลที่ต้องการแก้ไข' });
+      return;
+    }
+
+    let oldReadings: any = {};
+    try {
+      oldReadings = typeof existingLog.readings === 'string' ? JSON.parse(existingLog.readings) : existingLog.readings;
+    } catch (e) {}
+
+    const newReadings = readings || oldReadings;
+    const newReadingsStr = typeof newReadings === 'string' ? newReadings : JSON.stringify(newReadings);
+
+    // Calculate detailed diff
+    const diff: Record<string, { old: any; new: any }> = {};
+    const allKeys = Array.from(new Set([...Object.keys(oldReadings), ...Object.keys(newReadings)]));
+    for (const key of allKeys) {
+      if (oldReadings[key] !== newReadings[key]) {
+        diff[key] = { old: oldReadings[key] ?? null, new: newReadings[key] ?? null };
+      }
+    }
+
+    if (existingLog.isDefect !== Boolean(isDefect)) {
+      diff['isDefect'] = { old: existingLog.isDefect, new: Boolean(isDefect) };
+    }
+    if ((existingLog.defectNote || '') !== (defectNote || '')) {
+      diff['defectNote'] = { old: existingLog.defectNote || '', new: defectNote || '' };
+    }
+
+    // Parse existing editHistory
+    let editHistoryList: any[] = [];
+    if (existingLog.editHistory) {
+      try {
+        editHistoryList = JSON.parse(existingLog.editHistory);
+      } catch (e) {
+        editHistoryList = [];
+      }
+    }
+
+    const auditEntry = {
+      editedBy: req.user?.username || 'Admin',
+      editedAt: new Date().toISOString(),
+      reason: reason || 'แก้ไขบันทึกย้อนหลังโดยผู้ดูแลระบบ',
+      diff,
+    };
+
+    editHistoryList.unshift(auditEntry);
+
+    const updatedLog = await prisma.inspectionLog.update({
+      where: { id: logId },
+      data: {
+        readings: newReadingsStr,
+        isDefect: Boolean(isDefect),
+        defectNote: defectNote !== undefined ? defectNote : existingLog.defectNote,
+        editHistory: JSON.stringify(editHistoryList),
+      },
+      include: {
+        equipment: { include: { room: true, type: true } },
+        photos: true,
+      },
+    });
+
+    res.json({ message: 'บันทึกการแก้ไขและจัดเก็บประวัติ Audit Log เรียบร้อยแล้ว', log: updatedLog });
+  } catch (error: any) {
+    res.status(500).json({ message: 'เกิดข้อผิดพลาดในการแก้ไขข้อมูล', error: error.message });
+  }
+};
+
+// Admin Delete Entire Round
+export const deleteRound = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const roundId = req.params.roundId as string;
+
+    const existingRound = await prisma.inspectionRound.findUnique({
+      where: { id: roundId },
+    });
+
+    if (!existingRound) {
+      res.status(404).json({ message: 'ไม่พบรอบการเดินตรวจนี้' });
+      return;
+    }
+
+    await prisma.inspectionRound.delete({
+      where: { id: roundId },
+    });
+
+    res.json({ message: `ลบรอบการเดินตรวจ ${existingRound.shiftName} เรียบร้อยแล้ว` });
+  } catch (error: any) {
+    res.status(500).json({ message: 'เกิดข้อผิดพลาดในการลบรอบตรวจ', error: error.message });
+  }
+};
+
