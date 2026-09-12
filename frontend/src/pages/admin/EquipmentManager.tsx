@@ -17,6 +17,26 @@ import {
   Sliders,
 } from 'lucide-react';
 
+const getRoomImage = (room: Room): string => {
+  const code = (room.code || '').toUpperCase();
+  const name = (room.name || '').toLowerCase();
+
+  if (code.includes('BAT') || name.includes('battery') || name.includes('แบตเตอรี่')) {
+    return '/images/rooms/room_battery_bank.jpg';
+  }
+  if (code.includes('CHILL') || name.includes('chiller') || name.includes('cooling') || name.includes('น้ำเย็น')) {
+    return '/images/rooms/room_chiller_yard.jpg';
+  }
+  if (code.includes('SR') || name.includes('server') || name.includes('เซิร์ฟเวอร์') || name.includes('hall')) {
+    return '/images/rooms/room_server_hall.jpg';
+  }
+  if (code.includes('UPS') || name.includes('ups') || name.includes('switchgear') || name.includes('mdb') || name.includes('จ่ายไฟ')) {
+    return '/images/rooms/room_ups_switchgear.jpg';
+  }
+
+  return '/images/rooms/room_server_hall.jpg';
+};
+
 export const EquipmentManager: React.FC = () => {
   const { isAdmin } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -175,28 +195,55 @@ export const EquipmentManager: React.FC = () => {
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
           ห้องทั้งหมดใน Data Center ({rooms.length} ห้อง)
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {rooms.map((r) => (
-            <div
-              key={r.id}
-              className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-xs hover:shadow-sm transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono font-bold border border-slate-200">
-                  {r.code}
-                </span>
-                <span className="text-xs text-slate-500 font-medium">{r.floor || 'ชั้น 1'}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {rooms.map((r) => {
+            const roomImg = getRoomImage(r);
+            return (
+              <div
+                key={r.id}
+                className="group rounded-xl bg-white border border-slate-200/80 shadow-xs hover:shadow-md transition-all overflow-hidden flex flex-col"
+              >
+                {/* Room Image Header with overlay badges */}
+                <div className="relative h-32 w-full overflow-hidden bg-slate-100">
+                  <img
+                    src={roomImg}
+                    alt={r.name}
+                    className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+                  <div className="absolute top-2.5 left-2.5">
+                    <span className="text-xs px-2 py-0.5 rounded bg-white/95 backdrop-blur-xs text-slate-900 font-mono font-bold shadow-xs">
+                      {r.code}
+                    </span>
+                  </div>
+                  <div className="absolute top-2.5 right-2.5">
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-white font-medium border border-white/20">
+                      {r.floor || 'ชั้น 1'}
+                    </span>
+                  </div>
+                  <div className="absolute bottom-2 left-2.5 right-2.5">
+                    <h4 className="font-bold text-white text-sm truncate drop-shadow-sm">
+                      {r.name}
+                    </h4>
+                  </div>
+                </div>
+
+                {/* Card Body */}
+                <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
+                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                    {r.description || '-'}
+                  </p>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span>อุปกรณ์:</span>
+                    <span className="font-bold text-slate-800 font-mono px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
+                      {r._count?.equipments ?? 0} ชิ้น
+                    </span>
+                  </div>
+                </div>
               </div>
-              <h4 className="font-bold text-slate-900 mt-2.5 text-sm truncate">{r.name}</h4>
-              <p className="text-xs text-slate-500 mt-1 line-clamp-2">{r.description || '-'}</p>
-              <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>อุปกรณ์:</span>
-                <span className="font-bold text-slate-800 font-mono">
-                  {r._count?.equipments ?? 0} ชิ้น
-                </span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
