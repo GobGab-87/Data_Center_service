@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { roomApi, equipmentApi } from '../../services/api';
 import { Room, Equipment, EquipmentType } from '../../types';
 import { QRCodeSVG } from 'qrcode.react';
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const EquipmentManager: React.FC = () => {
+  const { isAdmin } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [types, setTypes] = useState<EquipmentType[]>([]);
@@ -148,22 +150,24 @@ export const EquipmentManager: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsRoomModalOpen(true)}
-            className="px-3.5 py-2 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-          >
-            <Building className="w-3.5 h-3.5 text-blue-600" />
-            <span>เพิ่มห้องใหม่</span>
-          </button>
-          <button
-            onClick={() => setIsEqModalOpen(true)}
-            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>เพิ่มอุปกรณ์ใหม่</span>
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsRoomModalOpen(true)}
+              className="px-3.5 py-2 rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            >
+              <Building className="w-3.5 h-3.5 text-blue-600" />
+              <span>เพิ่มห้องใหม่</span>
+            </button>
+            <button
+              onClick={() => setIsEqModalOpen(true)}
+              className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>เพิ่มอุปกรณ์ใหม่</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Rooms Overview Grid */}
@@ -214,7 +218,7 @@ export const EquipmentManager: React.FC = () => {
                 <th className="px-4 py-3">ห้อง</th>
                 <th className="px-4 py-3">ประเภท / การวัด</th>
                 <th className="px-4 py-3">รหัส QR Code</th>
-                <th className="px-4 py-3 text-right">ป้าย QR / จัดการ</th>
+                <th className="px-4 py-3 text-right">{isAdmin ? 'ป้าย QR / จัดการ' : 'ป้าย QR Code'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -237,13 +241,15 @@ export const EquipmentManager: React.FC = () => {
                       <QrCode className="w-3.5 h-3.5 text-blue-600" />
                       <span>พิมพ์ QR</span>
                     </button>
-                    <button
-                      onClick={() => handleDeleteEquipment(eq.id)}
-                      className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                      title="ลบอุปกรณ์"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleDeleteEquipment(eq.id)}
+                        className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        title="ลบอุปกรณ์"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -301,7 +307,7 @@ export const EquipmentManager: React.FC = () => {
       )}
 
       {/* Create Room Modal */}
-      {isRoomModalOpen && (
+      {isAdmin && isRoomModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl p-6">
             <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">
@@ -382,7 +388,7 @@ export const EquipmentManager: React.FC = () => {
       )}
 
       {/* Create Equipment Modal */}
-      {isEqModalOpen && (
+      {isAdmin && isEqModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="relative w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3.5 border-b border-slate-200">

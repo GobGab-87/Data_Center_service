@@ -257,6 +257,7 @@ export const UserApproval: React.FC = () => {
           <table className="w-full text-left text-xs text-hp-charcoal">
             <thead className="bg-hp-cloud text-hp-graphite font-semibold border-b border-hp-hairline">
               <tr>
+                <th className="px-4 py-3">รหัสพนักงาน</th>
                 <th className="px-4 py-3">ชื่อ-นามสกุล / Username</th>
                 <th className="px-4 py-3">แผนก</th>
                 <th className="px-4 py-3">ระดับสิทธิ์ (Role)</th>
@@ -268,13 +269,17 @@ export const UserApproval: React.FC = () => {
               {users.map((u) => (
                 <tr key={u.id} className="hover:bg-hp-cloud/60 transition-colors">
                   <td className="px-4 py-3.5">
-                    <div className="font-semibold text-hp-ink flex items-center gap-1.5">
-                      <span>{u.fullName}</span>
-                      {u.employeeId && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-hp-xs bg-hp-cloud border border-hp-hairline text-hp-primary font-semibold">
-                          {u.employeeId}
-                        </span>
-                      )}
+                    {u.employeeId ? (
+                      <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-hp-xs bg-hp-cloud border border-hp-hairline text-hp-primary inline-flex items-center">
+                        {u.employeeId}
+                      </span>
+                    ) : (
+                      <span className="text-hp-graphite font-mono text-xs">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <div className="font-semibold text-hp-ink">
+                      {u.fullName}
                     </div>
                     <div className="text-[11px] text-hp-graphite font-mono">@{u.username}</div>
                   </td>

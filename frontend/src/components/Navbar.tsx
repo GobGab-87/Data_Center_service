@@ -102,11 +102,11 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: 'แดชบอร์ดภาพรวม', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'จัดการอุปกรณ์ & QR', path: '/admin/equipments', icon: Server },
     { name: 'ประวัติการตรวจ', path: '/history', icon: History },
   ];
 
   if (isAdmin) {
-    navLinks.push({ name: 'จัดการอุปกรณ์ & QR', path: '/admin/equipments', icon: Server });
     navLinks.push({ name: 'อนุมัติผู้ใช้งาน', path: '/admin/users', icon: UserCheck });
   }
 
