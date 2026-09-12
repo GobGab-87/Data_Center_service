@@ -47,6 +47,12 @@ export const Inspection: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'offline'; text: string } | null>(null);
   const [newShiftName, setNewShiftName] = useState('กะเช้า (08:00 - 16:00 น.)');
   const [recordedEquipmentIds, setRecordedEquipmentIds] = useState<Set<string>>(new Set());
+  const [recordedDataMap, setRecordedDataMap] = useState<Record<string, {
+    readings: Record<string, any>;
+    isDefect: boolean;
+    defectNote?: string;
+    photoPreview?: string | null;
+  }>>({});
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
@@ -63,17 +69,45 @@ export const Inspection: React.FC = () => {
   const initInspection = async () => {
     setLoading(true);
     try {
+      const dataMap: Record<string, any> = {};
+      const loggedIds = new Set<string>();
+
       try {
         const roundRes = await inspectionApi.getActiveRound();
         if (roundRes.data.round) {
           setActiveRound(roundRes.data.round);
-          const loggedIds = new Set<string>();
-          roundRes.data.round.logs?.forEach((l) => loggedIds.add(l.equipmentId));
-          setRecordedEquipmentIds(loggedIds);
+          roundRes.data.round.logs?.forEach((l) => {
+            loggedIds.add(l.equipmentId);
+            try {
+              dataMap[l.equipmentId] = {
+                readings: typeof l.readings === 'string' ? JSON.parse(l.readings) : l.readings,
+                isDefect: l.isDefect,
+                defectNote: l.defectNote || '',
+                photoPreview: l.photos?.[0]?.photoUrl || null,
+              };
+            } catch (e) {}
+          });
         }
       } catch (e) {
         console.warn('Offline or round fetch error');
       }
+
+      // Also restore from offline pending logs
+      try {
+        const pending = await offlineDb.getAllPendingLogs();
+        pending.forEach((l) => {
+          loggedIds.add(l.equipmentId);
+          dataMap[l.equipmentId] = {
+            readings: l.readings,
+            isDefect: l.isDefect,
+            defectNote: l.defectNote || '',
+            photoPreview: l.photos?.[0]?.photoUrl || null,
+          };
+        });
+      } catch (e) {}
+
+      setRecordedEquipmentIds(loggedIds);
+      setRecordedDataMap(dataMap);
 
       let loadedRooms: Room[] = [];
       if (navigator.onLine) {
@@ -97,7 +131,7 @@ export const Inspection: React.FC = () => {
 
       const allEqs = loadedRooms.flatMap((r) => r.equipments || []);
       if (allEqs.length > 0) {
-        selectEquipment(allEqs[0]);
+        selectEquipment(allEqs[0], dataMap);
       }
     } catch (err) {
       console.error('Initialization error:', err);
@@ -106,13 +140,24 @@ export const Inspection: React.FC = () => {
     }
   };
 
-  const selectEquipment = (eq: Equipment) => {
+  const selectEquipment = (eq: Equipment, customDataMap?: Record<string, any>) => {
     setSelectedEquipment(eq);
-    setReadings({});
-    setIsDefect(false);
-    setDefectNote('');
-    setPhotoFile(null);
-    setPhotoPreview(null);
+    const mapToUse = customDataMap || recordedDataMap;
+    const saved = mapToUse[eq.id];
+
+    if (saved) {
+      setReadings(saved.readings ? { ...saved.readings } : {});
+      setIsDefect(Boolean(saved.isDefect));
+      setDefectNote(saved.defectNote || '');
+      setPhotoPreview(saved.photoPreview || null);
+      setPhotoFile(null);
+    } else {
+      setReadings({});
+      setIsDefect(false);
+      setDefectNote('');
+      setPhotoFile(null);
+      setPhotoPreview(null);
+    }
 
     if (eq.roomId) {
       setExpandedRooms((prev) => ({ ...prev, [eq.roomId]: true }));
@@ -288,19 +333,44 @@ export const Inspection: React.FC = () => {
         }
       }
 
+      // Auto-start active round if user records while online but no round is active yet
+      let currentRound = activeRound;
+      if (navigator.onLine && !currentRound) {
+        try {
+          const autoRoundRes = await inspectionApi.startRound({
+            shiftName: newShiftName || 'รอบเดินตรวจ (กำลังดำเนินการ)',
+          });
+          currentRound = autoRoundRes.data.round;
+          setActiveRound(currentRound);
+        } catch (roundErr) {
+          console.warn('Auto start round error', roundErr);
+        }
+      }
+
       const logPayload = {
-        roundId: activeRound?.id || 'temp-round',
+        roundId: currentRound?.id || 'temp-round',
         equipmentId: selectedEquipment.id,
         equipmentName: selectedEquipment.name,
         roomName: rooms.find((r) => r.id === selectedEquipment.roomId)?.name || '',
         readings,
         isDefect,
         defectNote: isDefect ? defectNote : undefined,
-        photos: photoUrl ? [{ photoUrl }] : undefined,
+        photos: photoUrl ? [{ photoUrl }] : (photoPreview ? [{ photoUrl: photoPreview }] : undefined),
         recordedAt: new Date().toISOString(),
       };
 
-      if (navigator.onLine && activeRound) {
+      // Save into memory map so clicking this equipment always retains the values
+      setRecordedDataMap((prev) => ({
+        ...prev,
+        [selectedEquipment.id]: {
+          readings: { ...readings },
+          isDefect,
+          defectNote,
+          photoPreview: photoPreview || photoUrl || null,
+        },
+      }));
+
+      if (navigator.onLine && currentRound) {
         await inspectionApi.recordLog(logPayload);
         setRecordedEquipmentIds((prev) => new Set(prev).add(selectedEquipment.id));
         showToast('success', `บันทึกข้อมูล ${selectedEquipment.name} สำเร็จ`);
@@ -681,7 +751,7 @@ export const Inspection: React.FC = () => {
                     {recordedEquipmentIds.has(selectedEquipment.id) && (
                       <span className="text-[10px] text-emerald-800 font-medium flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-hp-xs border border-emerald-200">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        บันทึกแล้ว
+                        บันทึกแล้ว (แสดงค่าที่บันทึกไว้)
                       </span>
                     )}
                   </div>
@@ -839,7 +909,7 @@ export const Inspection: React.FC = () => {
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>บันทึกผลการตรวจสอบ</span>
+                      <span>{recordedEquipmentIds.has(selectedEquipment.id) ? 'อัปเดตผลการตรวจสอบ' : 'บันทึกผลการตรวจสอบ'}</span>
                     </>
                   )}
                 </button>

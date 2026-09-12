@@ -62,6 +62,9 @@ export const Navbar: React.FC = () => {
   const checkPendingLogs = async () => {
     const count = await offlineDb.getPendingLogsCount();
     setPendingCount(count);
+    if (count > 0 && navigator.onLine && !isSyncing) {
+      triggerAutoSync();
+    }
   };
 
   const triggerAutoSync = async () => {
