@@ -20,6 +20,8 @@ import {
   ShieldCheck,
   PhoneCall,
   HelpCircle,
+  X,
+  MousePointerClick,
 } from 'lucide-react';
 import {
   LineChart,
@@ -35,16 +37,76 @@ import {
   Area,
 } from 'recharts';
 
+const ROOM_COLORS: Record<string, string> = {
+  'SR-01': '#059669', // Emerald
+  'SR-02': '#0d9488', // Teal
+  'UPS-01': '#d97706', // Amber
+  'BAT-01': '#7c3aed', // Violet
+  'CHILL-01': '#0284c7', // Sky
+  TOTAL: '#024ad8', // HP Primary
+};
+
+const getRoomColor = (code: string, index: number): string => {
+  if (ROOM_COLORS[code]) return ROOM_COLORS[code];
+  const fallbackColors = ['#059669', '#d97706', '#7c3aed', '#0284c7', '#dc2626', '#4f46e5', '#ca8a04'];
+  return fallbackColors[index % fallbackColors.length];
+};
+
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trends, setTrends] = useState<any[]>([]);
   const [powerTrends, setPowerTrends] = useState<any[]>([]);
+  const [tempRooms, setTempRooms] = useState<Room[]>([]);
+  const [powerRooms, setPowerRooms] = useState<Room[]>([]);
   const [defects, setDefects] = useState<any[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Chart-specific room filters
+  const [tempChartRoom, setTempChartRoom] = useState<string>('TOTAL');
+  const [tempMetricFilter, setTempMetricFilter] = useState<'ALL' | 'TEMP' | 'HUM'>('ALL');
+  const [powerChartRoom, setPowerChartRoom] = useState<string>('TOTAL');
+
+  // Power BI Spotlight state (active focused series)
+  const [tempSpotlight, setTempSpotlight] = useState<string | null>(null);
+  const [powerSpotlight, setPowerSpotlight] = useState<string | null>(null);
+
+  const toggleTempSpotlight = (key: string) => {
+    setTempSpotlight((prev) => (prev === key ? null : key));
+  };
+
+  const togglePowerSpotlight = (key: string) => {
+    setPowerSpotlight((prev) => (prev === key ? null : key));
+  };
+
+  const getTempSeriesLabel = (key: string) => {
+    if (key === 'avgTemp') return 'อุณหภูมิเฉลี่ยรวม (Total Avg Temp)';
+    if (key === 'avgHumidity') return 'ความชื้นเฉลี่ยรวม (Total Avg Humidity)';
+    if (key.endsWith('_temp')) {
+      const code = key.replace('_temp', '');
+      const r = tempRooms.find((rm) => rm.code === code);
+      return `อุณหภูมิ ${r ? r.name : code} (°C)`;
+    }
+    if (key.endsWith('_humidity')) {
+      const code = key.replace('_humidity', '');
+      const r = tempRooms.find((rm) => rm.code === code);
+      return `ความชื้น ${r ? r.name : code} (%RH)`;
+    }
+    return key;
+  };
+
+  const getPowerSeriesLabel = (key: string) => {
+    if (key === 'totalKw') return 'กำลังไฟฟ้ารวมทั้งหมด (Total kW)';
+    if (key.endsWith('_kw')) {
+      const code = key.replace('_kw', '');
+      const r = powerRooms.find((rm) => rm.code === code);
+      return `กำลังไฟฟ้า ${r ? r.name : code} (kW)`;
+    }
+    return key;
+  };
 
   const handleNavigateWithTransition = (path: string) => {
     if (typeof document !== 'undefined' && 'startViewTransition' in document) {
@@ -66,16 +128,22 @@ export const Dashboard: React.FC = () => {
       const [sumRes, trendRes, powerRes, defectRes, roomsRes] = await Promise.all([
         dashboardApi.getSummary(),
         dashboardApi.getTempHumidityTrends({ roomId: selectedRoom || undefined }),
-        dashboardApi.getPowerTrends(),
+        dashboardApi.getPowerTrends({ roomId: selectedRoom || undefined }),
         dashboardApi.getDefects(),
         roomApi.getRooms(),
       ]);
 
       setSummary(sumRes.data);
-      setTrends(trendRes.data.trends);
-      setPowerTrends(powerRes.data.powerTrends);
-      setDefects(defectRes.data.defects);
-      setRooms(roomsRes.data.rooms);
+      setTrends(trendRes.data.trends || []);
+      if (trendRes.data.rooms) {
+        setTempRooms(trendRes.data.rooms);
+      }
+      setPowerTrends(powerRes.data.powerTrends || []);
+      if (powerRes.data.rooms) {
+        setPowerRooms(powerRes.data.rooms);
+      }
+      setDefects(defectRes.data.defects || []);
+      setRooms(roomsRes.data.rooms || []);
     } catch (err) {
       console.error('Failed to load dashboard data', err);
     } finally {
@@ -292,18 +360,112 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Temperature & Humidity Trend Chart */}
-      <div className="p-6 sm:p-7 rounded-hp-xl bg-white border border-hp-hairline shadow-hp-soft">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-6">
+      <div className="p-6 sm:p-7 rounded-hp-xl bg-white border border-hp-hairline shadow-hp-soft space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-hp-hairline">
           <div>
             <h3 className="text-base font-medium text-hp-ink flex items-center gap-2">
               <Thermometer className="w-4 h-4 text-hp-primary" />
               <span>แนวโน้มอุณหภูมิและความชื้นสัมพัทธ์ (Temperature & Humidity Trends)</span>
             </h3>
-            <p className="text-xs text-hp-graphite mt-0.5">
-              เส้นประสีแดง = เกณฑ์อุณหภูมิสูง Hotspot (26°C), เส้นประสีฟ้า = เกณฑ์อุณหภูมิต่ำ Overcooling (19°C)
+            <p className="text-xs text-hp-graphite mt-0.5 flex items-center gap-1.5 flex-wrap">
+              <span>คลิกที่เส้นกราฟหรือ Legend เพื่อ Focus / Filter ข้อมูลแบบ Power BI</span>
+              <span>•</span>
+              <span className="text-rose-600 font-medium">เกณฑ์สูง Hotspot (26°C)</span>
+              <span>•</span>
+              <span className="text-sky-700 font-medium">เกณฑ์ต่ำ Overcooling (19°C)</span>
             </p>
           </div>
+
+          {/* Controls: Room Selector & Metric Toggle */}
+          <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+            {/* Metric Mode Toggle */}
+            <div className="inline-flex rounded-hp-md border border-hp-hairline bg-hp-cloud p-0.5 text-xs">
+              <button
+                onClick={() => setTempMetricFilter('ALL')}
+                className={`px-2.5 py-1 rounded-hp-xs font-semibold transition-all cursor-pointer ${
+                  tempMetricFilter === 'ALL'
+                    ? 'bg-white text-hp-ink shadow-2xs'
+                    : 'text-hp-graphite hover:text-hp-ink'
+                }`}
+              >
+                ทั้งหมด
+              </button>
+              <button
+                onClick={() => setTempMetricFilter('TEMP')}
+                className={`px-2.5 py-1 rounded-hp-xs font-semibold transition-all cursor-pointer ${
+                  tempMetricFilter === 'TEMP'
+                    ? 'bg-white text-hp-primary shadow-2xs'
+                    : 'text-hp-graphite hover:text-hp-ink'
+                }`}
+              >
+                เฉพาะอุณหภูมิ (°C)
+              </button>
+              <button
+                onClick={() => setTempMetricFilter('HUM')}
+                className={`px-2.5 py-1 rounded-hp-xs font-semibold transition-all cursor-pointer ${
+                  tempMetricFilter === 'HUM'
+                    ? 'bg-white text-sky-700 shadow-2xs'
+                    : 'text-hp-graphite hover:text-hp-ink'
+                }`}
+              >
+                เฉพาะความชื้น (%RH)
+              </button>
+            </div>
+
+            {/* Room Selector Pills */}
+            <div className="flex flex-wrap items-center gap-1">
+              <button
+                onClick={() => {
+                  setTempChartRoom('TOTAL');
+                  setTempSpotlight(null);
+                }}
+                className={`px-3 py-1 rounded-hp-sm text-xs font-semibold transition-all cursor-pointer ${
+                  tempChartRoom === 'TOTAL'
+                    ? 'bg-hp-ink text-white shadow-2xs'
+                    : 'bg-hp-cloud hover:bg-hp-fog text-hp-graphite border border-hp-hairline'
+                }`}
+              >
+                📊 รวมทุกห้อง (Total)
+              </button>
+              {tempRooms.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => {
+                    setTempChartRoom(r.code);
+                    setTempSpotlight(null);
+                  }}
+                  className={`px-3 py-1 rounded-hp-sm text-xs font-semibold transition-all cursor-pointer ${
+                    tempChartRoom === r.code
+                      ? 'bg-hp-primary text-white shadow-2xs'
+                      : 'bg-hp-cloud hover:bg-hp-fog text-hp-graphite border border-hp-hairline'
+                  }`}
+                  title={r.name}
+                >
+                  {r.code}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
+
+        {/* Power BI Spotlight Banner Indicator */}
+        {tempSpotlight && (
+          <div className="px-3.5 py-2 rounded-hp-md bg-hp-cloud border border-hp-primary/40 flex items-center justify-between text-xs animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <MousePointerClick className="w-4 h-4 text-hp-primary animate-pulse" />
+              <span className="text-hp-graphite">โหมด Power BI Focus:</span>
+              <span className="font-semibold text-hp-primary font-mono">{getTempSeriesLabel(tempSpotlight)}</span>
+              <span className="text-[11px] text-hp-graphite hidden sm:inline">(เส้นอื่นๆ ถูกลด Opacity ลงเพื่อเน้นเส้นที่เลือก)</span>
+            </div>
+            <button
+              onClick={() => setTempSpotlight(null)}
+              className="text-xs text-hp-primary hover:underline font-semibold cursor-pointer flex items-center gap-1"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>ล้างการ Focus (แสดงทุกเส้น)</span>
+            </button>
+          </div>
+        )}
 
         <div className="h-72 w-full">
           {trends.length > 0 ? (
@@ -317,36 +479,147 @@ export const Dashboard: React.FC = () => {
                   contentStyle={{
                     backgroundColor: '#ffffff',
                     borderColor: '#e8e8e8',
-                    borderRadius: '4px',
+                    borderRadius: '6px',
                     color: '#1a1a1a',
                     fontSize: '11px',
-                    boxShadow: '0 2px 8px rgba(26, 26, 26, 0.08)',
+                    boxShadow: '0 4px 12px rgba(26, 26, 26, 0.08)',
                   }}
                 />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                <Legend
+                  onClick={(e: any) => {
+                    if (e && e.dataKey) toggleTempSpotlight(String(e.dataKey));
+                  }}
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '10px', cursor: 'pointer' }}
+                  formatter={(value, entry) => {
+                    const isSelected = tempSpotlight === entry.dataKey;
+                    const isDim = tempSpotlight !== null && !isSelected;
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1 transition-all duration-200 px-1.5 py-0.5 rounded text-xs select-none ${
+                          isSelected
+                            ? 'font-bold bg-hp-ink text-white shadow-2xs'
+                            : isDim
+                            ? 'opacity-30'
+                            : 'hover:text-hp-primary'
+                        }`}
+                      >
+                        {value}
+                      </span>
+                    );
+                  }}
+                />
 
                 <ReferenceLine yAxisId="temp" y={26} stroke="#ff5050" strokeDasharray="3 3" label={{ value: 'Hotspot (26°C)', fill: '#b3262b', fontSize: 10 }} />
                 <ReferenceLine yAxisId="temp" y={19} stroke="#356373" strokeDasharray="3 3" label={{ value: 'Overcooling (19°C)', fill: '#356373', fontSize: 10 }} />
 
-                <Line
-                  yAxisId="temp"
-                  type="monotone"
-                  dataKey="avgTemp"
-                  name="อุณหภูมิเฉลี่ย (°C)"
-                  stroke="#024ad8"
-                  strokeWidth={2}
-                  dot={{ r: 3.5, fill: '#024ad8' }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  yAxisId="hum"
-                  type="monotone"
-                  dataKey="avgHumidity"
-                  name="ความชื้นสัมพัทธ์ (%RH)"
-                  stroke="#7fadbe"
-                  strokeWidth={1.5}
-                  dot={{ r: 3, fill: '#7fadbe' }}
-                />
+                {tempChartRoom === 'TOTAL' ? (
+                  <>
+                    {/* Total Lines */}
+                    {(tempMetricFilter === 'ALL' || tempMetricFilter === 'TEMP') && (
+                      <Line
+                        yAxisId="temp"
+                        type="monotone"
+                        dataKey="avgTemp"
+                        name="อุณหภูมิรวม (°C)"
+                        stroke="#024ad8"
+                        strokeWidth={tempSpotlight === 'avgTemp' ? 4 : tempSpotlight ? 1 : 2.5}
+                        strokeOpacity={tempSpotlight && tempSpotlight !== 'avgTemp' ? 0.15 : 1}
+                        dot={{ r: 3, fill: '#024ad8' }}
+                        activeDot={{ r: 5 }}
+                        onClick={() => toggleTempSpotlight('avgTemp')}
+                        cursor="pointer"
+                      />
+                    )}
+                    {(tempMetricFilter === 'ALL' || tempMetricFilter === 'HUM') && (
+                      <Line
+                        yAxisId="hum"
+                        type="monotone"
+                        dataKey="avgHumidity"
+                        name="ความชื้นรวม (%RH)"
+                        stroke="#7fadbe"
+                        strokeDasharray="4 4"
+                        strokeWidth={tempSpotlight === 'avgHumidity' ? 3.5 : tempSpotlight ? 1 : 2}
+                        strokeOpacity={tempSpotlight && tempSpotlight !== 'avgHumidity' ? 0.15 : 1}
+                        dot={{ r: 2.5 }}
+                        onClick={() => toggleTempSpotlight('avgHumidity')}
+                        cursor="pointer"
+                      />
+                    )}
+
+                    {/* Room Specific Lines */}
+                    {tempRooms.map((r, idx) => (
+                      <React.Fragment key={r.id}>
+                        {(tempMetricFilter === 'ALL' || tempMetricFilter === 'TEMP') && (
+                          <Line
+                            yAxisId="temp"
+                            type="monotone"
+                            dataKey={`${r.code}_temp`}
+                            name={`${r.code} อุณหภูมิ (°C)`}
+                            stroke={getRoomColor(r.code, idx)}
+                            strokeWidth={tempSpotlight === `${r.code}_temp` ? 4 : tempSpotlight ? 1 : 1.75}
+                            strokeOpacity={tempSpotlight && tempSpotlight !== `${r.code}_temp` ? 0.15 : 1}
+                            dot={{ r: 2.5 }}
+                            onClick={() => toggleTempSpotlight(`${r.code}_temp`)}
+                            cursor="pointer"
+                          />
+                        )}
+                        {(tempMetricFilter === 'ALL' || tempMetricFilter === 'HUM') && (
+                          <Line
+                            yAxisId="hum"
+                            type="monotone"
+                            dataKey={`${r.code}_humidity`}
+                            name={`${r.code} ความชื้น (%RH)`}
+                            stroke={getRoomColor(r.code, idx)}
+                            strokeDasharray="3 3"
+                            strokeWidth={tempSpotlight === `${r.code}_humidity` ? 3.5 : tempSpotlight ? 1 : 1.5}
+                            strokeOpacity={tempSpotlight && tempSpotlight !== `${r.code}_humidity` ? 0.15 : 0.85}
+                            dot={{ r: 2 }}
+                            onClick={() => toggleTempSpotlight(`${r.code}_humidity`)}
+                            cursor="pointer"
+                          />
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {/* Single Room View */}
+                    {(tempMetricFilter === 'ALL' || tempMetricFilter === 'TEMP') && (
+                      <Line
+                        yAxisId="temp"
+                        type="monotone"
+                        dataKey={`${tempChartRoom}_temp`}
+                        name={`${tempChartRoom} อุณหภูมิ (°C)`}
+                        stroke={getRoomColor(tempChartRoom, 0)}
+                        strokeWidth={3}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    )}
+                    {(tempMetricFilter === 'ALL' || tempMetricFilter === 'HUM') && (
+                      <Line
+                        yAxisId="hum"
+                        type="monotone"
+                        dataKey={`${tempChartRoom}_humidity`}
+                        name={`${tempChartRoom} ความชื้น (%RH)`}
+                        stroke={getRoomColor(tempChartRoom, 0)}
+                        strokeDasharray="3 3"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    )}
+                    <Line
+                      yAxisId="temp"
+                      type="monotone"
+                      dataKey="avgTemp"
+                      name="เกณฑ์เฉลี่ยรวมศูนย์ข้อมูล (°C)"
+                      stroke="#94a3b8"
+                      strokeDasharray="4 4"
+                      strokeWidth={1.5}
+                      dot={false}
+                    />
+                  </>
+                )}
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -360,16 +633,76 @@ export const Dashboard: React.FC = () => {
       {/* Two Columns: Power & Defect Logs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Power Trends */}
-        <div className="p-6 sm:p-7 rounded-hp-xl bg-white border border-hp-hairline shadow-hp-soft">
-          <h3 className="text-base font-medium text-hp-ink flex items-center gap-2 mb-4">
-            <Zap className="w-4 h-4 text-amber-500" />
-            <span>แนวโน้มกำลังไฟฟ้าที่ใช้งาน (Active Power kW)</span>
-          </h3>
+        <div className="p-6 sm:p-7 rounded-hp-xl bg-white border border-hp-hairline shadow-hp-soft space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-hp-hairline">
+            <div>
+              <h3 className="text-base font-medium text-hp-ink flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                <span>แนวโน้มกำลังไฟฟ้าที่ใช้งาน (Active Power kW)</span>
+              </h3>
+              <p className="text-xs text-hp-graphite mt-0.5">
+                กำลังไฟฟ้ารวมและแยกตามห้อง (คลิกเส้นหรือ Legend เพื่อ Filter โฟกัส)
+              </p>
+            </div>
 
-          <div className="h-60 w-full">
+            {/* Room Selector Pills for Power */}
+            <div className="flex flex-wrap items-center gap-1 self-start sm:self-center">
+              <button
+                onClick={() => {
+                  setPowerChartRoom('TOTAL');
+                  setPowerSpotlight(null);
+                }}
+                className={`px-3 py-1 rounded-hp-sm text-xs font-semibold transition-all cursor-pointer ${
+                  powerChartRoom === 'TOTAL'
+                    ? 'bg-hp-ink text-white shadow-2xs'
+                    : 'bg-hp-cloud hover:bg-hp-fog text-hp-graphite border border-hp-hairline'
+                }`}
+              >
+                📊 รวมทุกห้อง (Total)
+              </button>
+              {powerRooms.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => {
+                    setPowerChartRoom(r.code);
+                    setPowerSpotlight(null);
+                  }}
+                  className={`px-3 py-1 rounded-hp-sm text-xs font-semibold transition-all cursor-pointer ${
+                    powerChartRoom === r.code
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'bg-hp-cloud hover:bg-hp-fog text-hp-graphite border border-hp-hairline'
+                  }`}
+                  title={r.name}
+                >
+                  {r.code}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Power Spotlight Banner Indicator */}
+          {powerSpotlight && (
+            <div className="px-3.5 py-2 rounded-hp-md bg-amber-50/70 border border-amber-200 flex items-center justify-between text-xs animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <MousePointerClick className="w-4 h-4 text-amber-600 animate-pulse" />
+                <span className="text-hp-graphite">โหมด Power BI Focus:</span>
+                <span className="font-semibold text-amber-900 font-mono">{getPowerSeriesLabel(powerSpotlight)}</span>
+                <span className="text-[11px] text-hp-graphite hidden sm:inline">(เส้นอื่นๆ ถูกลด Opacity ลง)</span>
+              </div>
+              <button
+                onClick={() => setPowerSpotlight(null)}
+                className="text-xs text-amber-700 hover:underline font-semibold cursor-pointer flex items-center gap-1"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>ล้างการ Focus (แสดงทุกเส้น)</span>
+              </button>
+            </div>
+          )}
+
+          <div className="h-64 w-full">
             {powerTrends.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={powerTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <LineChart data={powerTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f7f7f7" vertical={false} />
                   <XAxis dataKey="displayTime" stroke="#636363" fontSize={11} tickLine={false} />
                   <YAxis stroke="#636363" fontSize={11} tickLine={false} />
@@ -377,21 +710,92 @@ export const Dashboard: React.FC = () => {
                     contentStyle={{
                       backgroundColor: '#ffffff',
                       borderColor: '#e8e8e8',
-                      borderRadius: '4px',
+                      borderRadius: '6px',
+                      color: '#1a1a1a',
                       fontSize: '11px',
-                      boxShadow: '0 2px 8px rgba(26, 26, 26, 0.08)',
+                      boxShadow: '0 4px 12px rgba(26, 26, 26, 0.08)',
                     }}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="totalKw"
-                    name="กำลังไฟฟ้ารวม (kW)"
-                    stroke="#024ad8"
-                    strokeWidth={2}
-                    fill="#c9e0fc"
-                    fillOpacity={0.5}
+                  <Legend
+                    onClick={(e: any) => {
+                      if (e && e.dataKey) togglePowerSpotlight(String(e.dataKey));
+                    }}
+                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px', cursor: 'pointer' }}
+                    formatter={(value, entry) => {
+                      const isSelected = powerSpotlight === entry.dataKey;
+                      const isDim = powerSpotlight !== null && !isSelected;
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 transition-all duration-200 px-1.5 py-0.5 rounded text-xs select-none ${
+                            isSelected
+                              ? 'font-bold bg-amber-800 text-white shadow-2xs'
+                              : isDim
+                              ? 'opacity-30'
+                              : 'hover:text-amber-600'
+                          }`}
+                        >
+                          {value}
+                        </span>
+                      );
+                    }}
                   />
-                </AreaChart>
+
+                  {powerChartRoom === 'TOTAL' ? (
+                    <>
+                      {/* Total kW Line */}
+                      <Line
+                        type="monotone"
+                        dataKey="totalKw"
+                        name="กำลังไฟฟ้ารวม (Total kW)"
+                        stroke="#024ad8"
+                        strokeWidth={powerSpotlight === 'totalKw' ? 4.5 : powerSpotlight ? 1 : 2.75}
+                        strokeOpacity={powerSpotlight && powerSpotlight !== 'totalKw' ? 0.15 : 1}
+                        dot={{ r: 3.5, fill: '#024ad8' }}
+                        activeDot={{ r: 6 }}
+                        onClick={() => togglePowerSpotlight('totalKw')}
+                        cursor="pointer"
+                      />
+
+                      {/* Room Specific Power Lines */}
+                      {powerRooms.map((r, idx) => (
+                        <Line
+                          key={r.id}
+                          type="monotone"
+                          dataKey={`${r.code}_kw`}
+                          name={`${r.code} (${r.name}) kW`}
+                          stroke={getRoomColor(r.code, idx)}
+                          strokeWidth={powerSpotlight === `${r.code}_kw` ? 4 : powerSpotlight ? 1 : 1.75}
+                          strokeOpacity={powerSpotlight && powerSpotlight !== `${r.code}_kw` ? 0.15 : 1}
+                          dot={{ r: 2.5 }}
+                          onClick={() => togglePowerSpotlight(`${r.code}_kw`)}
+                          cursor="pointer"
+                        />
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {/* Single Room Power View */}
+                      <Line
+                        type="monotone"
+                        dataKey={`${powerChartRoom}_kw`}
+                        name={`${powerChartRoom} กำลังไฟฟ้า (kW)`}
+                        stroke={getRoomColor(powerChartRoom, 0)}
+                        strokeWidth={3.5}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="totalKw"
+                        name="กำลังไฟฟ้ารวมทั้งศูนย์ข้อมูล (Total kW)"
+                        stroke="#94a3b8"
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                    </>
+                  )}
+                </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-hp-graphite text-xs">

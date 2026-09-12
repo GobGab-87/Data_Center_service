@@ -104,8 +104,9 @@ export const inspectionApi = {
 export const dashboardApi = {
   getSummary: () => api.get<DashboardSummary>('/dashboard/summary'),
   getTempHumidityTrends: (params?: { roomId?: string; days?: number }) =>
-    api.get<{ trends: any[] }>('/dashboard/trends/temp-humidity', { params }),
-  getPowerTrends: () => api.get<{ powerTrends: any[] }>('/dashboard/trends/power'),
+    api.get<{ trends: any[]; rooms: Room[] }>('/dashboard/trends/temp-humidity', { params }),
+  getPowerTrends: (params?: { roomId?: string; days?: number }) =>
+    api.get<{ powerTrends: any[]; rooms: Room[] }>('/dashboard/trends/power', { params }),
   getDefects: () => api.get<{ defects: any[] }>('/dashboard/defects'),
 };
 
