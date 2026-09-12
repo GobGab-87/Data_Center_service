@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dashboardApi, roomApi } from '../services/api';
+import { dashboardApi, roomApi, getMediaUrl } from '../services/api';
 import { DashboardSummary, Room } from '../types';
 import { ProgressRing } from '../components/ProgressRing';
 import {
@@ -438,9 +438,9 @@ export const Dashboard: React.FC = () => {
                       {d.photos.map((p: any) => (
                         <img
                           key={p.id}
-                          src={p.photoUrl}
+                          src={getMediaUrl(p.photoUrl)}
                           alt="Defect"
-                          onClick={() => setSelectedImage(p.photoUrl)}
+                          onClick={() => setSelectedImage(getMediaUrl(p.photoUrl))}
                           className="w-12 h-12 rounded-hp-md object-cover border border-hp-steel hover:border-hp-ink cursor-pointer shadow-2xs transition-all"
                         />
                       ))}

@@ -2,11 +2,20 @@ import axios from 'axios';
 import { User, Room, Equipment, EquipmentType, InspectionRound, InspectionLog, DashboardSummary } from '../types';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+export const getMediaUrl = (url?: string): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
+  return `${apiBase}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 // Attach JWT token to requests
 api.interceptors.request.use((config) => {
